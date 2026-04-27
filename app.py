@@ -2,127 +2,71 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# -----------------------------
-# LOAD MODEL FILES
-# -----------------------------
-model = joblib.load("ml_model/model.pkl")
-scaler = joblib.load("ml_model/scaler.pkl")
-columns = joblib.load("ml_model/columns.pkl")
+data = joblib.load("house_pipelines.pkl")
 
-# ✅ CORRECT labels (from your model)
-labels = ['covid','Dengue', 'Flu', 'Measles']
+model = data["model"]
+scaler = data["scaler"]
+columns = data["columns"]
+num_cols = data["num_cols"]
 
-# -----------------------------
-# TITLE
-# -----------------------------
-st.title("🏥 Disease Prediction System")
-st.write("Enter patient symptoms to predict disease or healthy status")
+st.title("🏡 House Price Prediction")
 
-# -----------------------------
-# YES/NO FUNCTION
-# -----------------------------
-def yes_no(val):
-    return 1 if val == "Yes" else 0
+# 🔢 Numeric inputs
+OverallQual = st.number_input("Overall Quality", 1, 10, 5)
+YearBuilt = st.number_input("Year Built", 1900, 2025, 2000)
+YearRemodAdd = st.number_input("Year Remodel", 1900, 2025, 2005)
+TotalBsmtSF = st.number_input("Basement Area", 0, 5000, 800)
+FirstFlrSF = st.number_input("1st Floor Area", 0, 5000, 1000)
+GrLivArea = st.number_input("Living Area", 0, 6000, 1500)
+FullBath = st.slider("Full Bathrooms", 0, 4, 2)
+TotRmsAbvGrd = st.slider("Total Rooms", 1, 15, 6)
+GarageCars = st.slider("Garage Cars", 0, 4, 2)
+GarageArea = st.number_input("Garage Area", 0, 2000, 400)
 
-# -----------------------------
-# SYMPTOMS INPUT
-# -----------------------------
-st.subheader("Symptoms")
+# 🔘 Categorical inputs
+MSZoning = st.selectbox("Zoning", ["RL", "RM", "FV", "RH", "C (all)"])
+Utilities = st.selectbox("Utilities", ["AllPub", "NoSeWa"])
+BldgType = st.selectbox("Building Type", ["1Fam", "2fmCon", "Duplex", "Twnhs", "TwnhsE"])
+Heating = st.selectbox("Heating", ["GasA", "GasW", "Grav", "Wall", "Floor", "OthW"])
+KitchenQual = st.selectbox("Kitchen Quality", ["Ex", "Gd", "TA", "Fa"])
+SaleCondition = st.selectbox("Sale Condition", ["Normal", "Abnorml", "AdjLand", "Alloca", "Family", "Partial"])
+LandSlope = st.selectbox("Land Slope", ["Gtl", "Mod", "Sev"])
 
-fever = st.selectbox("Fever", ["No", "Yes"])
-cough = st.selectbox("Cough", ["No", "Yes"])
-rash = st.selectbox("Rash", ["No", "Yes"])
-headache = st.selectbox("Headache", ["No", "Yes"])
-vomiting = st.selectbox("Vomiting", ["No", "Yes"])
-fatigue = st.selectbox("Fatigue", ["No", "Yes"])
-sore_throat = st.selectbox("Sore Throat", ["No", "Yes"])
-breathing_issue = st.selectbox("Breathing Issue", ["No", "Yes"])
+# 🚀 Prediction
+if st.button("Predict Price"):
 
-# -----------------------------
-# PATIENT DETAILS
-# -----------------------------
-st.subheader("Patient Details")
+    input_dict = {
+        "OverallQual": OverallQual,
+        "YearBuilt": YearBuilt,
+        "YearRemodAdd": YearRemodAdd,
+        "TotalBsmtSF": TotalBsmtSF,
+        "1stFlrSF": FirstFlrSF,
+        "GrLivArea": GrLivArea,
+        "FullBath": FullBath,
+        "TotRmsAbvGrd": TotRmsAbvGrd,
+        "GarageCars": GarageCars,
+        "GarageArea": GarageArea,
 
-age = st.slider("Age", 0, 100, 25)
-temperature = st.slider("Temperature (°C)", 30.0, 45.0, 37.0)
-humidity = st.slider("Humidity (%)", 0, 100, 50)
-days = st.slider("Days of Symptoms", 0, 30, 3)
+        "MSZoning": MSZoning,
+        "Utilities": Utilities,
+        "BldgType": BldgType,
+        "Heating": Heating,
+        "KitchenQual": KitchenQual,
+        "SaleCondition": SaleCondition,
+        "LandSlope": LandSlope
+    }
 
-travel = st.selectbox("Travel History", ["No", "Yes"])
-gender = st.selectbox("Gender", ["Male", "Female"])
-severity = st.selectbox("Severity", ["Mild", "Moderate", "Severe"])
+    input_df = pd.DataFrame([input_dict])
 
-# -----------------------------
-# CONVERT INPUT
-# -----------------------------
-input_data = {
-    "fever": yes_no(fever),
-    "cough": yes_no(cough),
-    "rash": yes_no(rash),
-    "headache": yes_no(headache),
-    "vomiting": yes_no(vomiting),
-    "fatigue": yes_no(fatigue),
-    "sore_throat": yes_no(sore_throat),
-    "breathing_issue": yes_no(breathing_issue),
-    "age": age,
-    "temperature": temperature,
-    "humidity_level": humidity,
-    "days_symptoms": days,
-    "travel_history": yes_no(travel),
-    "gender": gender,
-    "severity": severity
-}
+    # 🔥 convert to 41 features
+    input_df = pd.get_dummies(input_df)
 
-# -----------------------------
-# PREDICT BUTTON
-# -----------------------------
-if st.button("Predict Disease"):
+    # match training columns
+    input_df = input_df.reindex(columns=columns, fill_value=0)
 
-    df = pd.DataFrame([input_data])
+    # scale only numeric
+    input_df[num_cols] = scaler.transform(input_df[num_cols])
 
-    # One-hot encoding
-    df = pd.get_dummies(df)
+    prediction = model.predict(input_df)[0]
 
-    # Align columns
-    df = df.reindex(columns=columns, fill_value=0)
-
-    # -----------------------------
-    # 🟢 HEALTHY CHECK (all symptoms = 0)
-    # -----------------------------
-    symptoms = [
-        input_data["fever"],
-        input_data["cough"],
-        input_data["rash"],
-        input_data["headache"],
-        input_data["vomiting"],
-        input_data["fatigue"],
-        input_data["sore_throat"],
-        input_data["breathing_issue"]
-    ]
-
-    if sum(symptoms) == 0:
-        st.success("🟢 Prediction: Healthy / No Disease")
-
-    else:
-        # Scale
-        df_scaled = scaler.transform(df)
-
-        # Predict
-        prediction = model.predict(df_scaled)[0]
-
-        # Confidence
-        proba = model.predict_proba(df_scaled)[0]
-        confidence = round(max(proba) * 100, 2)
-
-        # Convert to disease name
-        disease = labels[int(prediction)]
-
-        # -----------------------------
-        # 🟢 LOW CONFIDENCE CHECK
-        # -----------------------------
-        if confidence < 60:
-            st.success("🟢 Prediction: Healthy / No Disease")
-            st.info(f"📊 Confidence: {confidence}% (Low confidence)")
-        else:
-            st.success(f"🧠 Prediction: {disease}")
-            st.info(f"📊 Confidence: {confidence}%")
+    st.success(f"🏡 Predicted Price: ${int(prediction):,}")
